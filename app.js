@@ -37,7 +37,6 @@ app.use((err, _req, res, next) => {
     // check if error is a Sequelize error:
     if (err instanceof ValidationError) {
         err.errors = err.errors.map(e => {
-            // return e
             return { field: e.path, message: e.message }
         });
         err.statusCode = 422;
