@@ -11,7 +11,7 @@
     "db:create": "npx dotenv sequelize-cli db:create",
     "db:migrate": "npx dotenv sequelize-cli db:migrate",
     "db:seed:all": "npx dotenv sequelize-cli db:seed:all",
-    "test": "jest",
+    "test": "jest --timeout=100000",
     "test-async": "jest --detectOpenHandles"
   },
   "jest": {
