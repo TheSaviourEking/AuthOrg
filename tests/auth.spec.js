@@ -7,10 +7,7 @@ const request = require("supertest");
 const { User } = require('../db/models');
 const { sequelize } = require('../db/models');
 const bcrypt = require('bcryptjs');
-const { setTokenCookie, verifyToken, signToken } = require('../utils/jwt');
-// const { expect, use } = require('chai');
-
-// chai.use(chaiHttp);
+const { verifyToken, signToken } = require('../utils/jwt');
 
 // clear database
 
@@ -44,7 +41,7 @@ describe("Integration Testing - API with Real Database", () => {
     beforeAll(async () => {
         // Initialize a testing database or environment
         await sequelize.sync({ force: true });
-    });
+    }, 30000); // 30 seconds timeout
     describe('Token generation', () => {
         it('should ensure token expires at the correct time and correct user details is found in token', async () => {
 
@@ -107,7 +104,7 @@ describe("End To End Testing - API with Real Database", () => {
     beforeAll(async () => {
         // Initialize a testing database or environment
         await sequelize.sync({ force: true });
-    });
+    }, 30000); // 30 seconds timeout
     describe('Register User Successfully with Default Organisation', () => {
         it('should a user is registered successfully when no organisation details are provided', async () => {
             const registeredUser = await request(app)
