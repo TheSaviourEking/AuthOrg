@@ -1,9 +1,7 @@
 const { Organisation, User, UserOrganisation } = require('../db/models');
-const { Op } = require('sequelize');
 
 const fetchUserOrganisations = async (req, res, next) => {
-    const userId = req.user.dataValues.userId; // Assuming you have middleware that sets req.user after authentication
-
+    const userId = req.user.dataValues.userId;
     try {
         // Fetch the user with associated organisations
         const user = await User.findByPk(userId, {
@@ -24,7 +22,8 @@ const fetchUserOrganisations = async (req, res, next) => {
         const { Organisations } = user;
 
         const responseData = {
-            organisations: Organisations[0] // Assuming associations are correctly defined in the User model
+            // organisations: Organisations[0];
+            organisations: Organisations
         };
 
         // Send response
@@ -39,16 +38,29 @@ const fetchUserOrganisations = async (req, res, next) => {
 };
 
 const fetchAnOrganisation = async (req, res, next) => {
+    console.log(req.params)
     const { orgId } = req.params;
+    const userId = req.user.userId;
+
     try {
+        const userOrganisation = await UserOrganisation.findOne({
+            where: { userId, organisationId: orgId }
+        });
+        if (!userOrganisation) {
+            const error = new Error('User not found');
+            error.message = 'Forbidden: Access to the organisation is denied'
+            error.statusCode = 404;
+            next(error);
+        }
         const organisation = await Organisation.findByPk(orgId);
         if (!organisation) {
-            const error = new Error('User not found');
+            const error = new Error('Organisation not found');
             error.statusCode = 404;
             throw error;
         }
 
         const { name, description } = organisation;
+
 
         res
             .status(200)

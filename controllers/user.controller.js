@@ -21,7 +21,7 @@ const signup = async (req, res, next) => {
         await UserOrganisation.create({ userId: user.userId, organisationId: organisation.orgId });
 
         // Generate JWT token
-        const token = setTokenCookie(res, user)
+        const token = setTokenCookie(res, user);
 
         // Return the user and token
         return res.status(201).json({
@@ -35,6 +35,7 @@ const signup = async (req, res, next) => {
                     lastName,
                     email,
                     phone,
+                    password: hashedPassword
                 }
             }
         })
@@ -44,7 +45,7 @@ const signup = async (req, res, next) => {
         const err = new Error('Bad request');
         err.status = 'Bad request';
         err.message = 'Registration unsuccessful';
-        err.statusCode = 400;
+        err.statusCode = 422; //400;
         next(err);
         // return res.status(500).json({ error: 'An error occurred while signing up' });
     }
