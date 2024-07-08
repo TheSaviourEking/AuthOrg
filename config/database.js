@@ -18,12 +18,25 @@ module.exports = {
     seederStorage: 'sequelize'
   },
   test: {
-    username,
-    password,
-    database,
-    host,
+    // username: 'techXplorer',
+    // password: 'paSS.cod3',
+    // database: 'stage-2',
+    // host: 'postgresql-177999-0.cloudclusters.net',
+    // port: '10122',
+    use_env_variable: 'TEST_DB_URL',
     dialect: 'postgres',
-    seederStorage: 'sequelize'
+    seederStorage: 'sequelize',
+    // dialectOptions: {
+    //   ssl: {
+    //     require: true,
+    //     rejectUnauthorized: false,
+    //   }
+    // }
+    dialectOptions: {
+      ssl: {
+        rejectUnauthorized: false
+      }
+    }
   },
   production: {
     use_env_variable: 'DATABASE_URL',
