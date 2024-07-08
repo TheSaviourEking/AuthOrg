@@ -1,13 +1,17 @@
+require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const { jwtConfig: { secret, expiresIn } } = require('../config');
 
-const setTokenCookie = (res, user) => {
-    // Create a token.
-    const token = jwt.sign(
-        { id: user.userId, email: user.email },
+const signToken = (user) => {
+    const { userId, firstName, lastName, email, password, phone } = user;
+    return jwt.sign(
+        { userId, email, firstName, lastName, password, phone },
         secret,
-        { expiresIn: parseInt(expiresIn) } // 604,800 seconds = 1 week
+        { expiresIn: parseInt(expiresIn) }
     );
+}
+const setTokenCookie = (res, user) => {
+    const token = signToken(user);
 
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -30,4 +34,4 @@ const verifyToken = (token) => {
     }
 };
 
-module.exports = { setTokenCookie, verifyToken };
+module.exports = { setTokenCookie, verifyToken, signToken };
