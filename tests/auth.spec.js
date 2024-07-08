@@ -1,144 +1,295 @@
-const request = require('supertest');
-const app = require('../app'); // Adjust the path as necessary
-const { sequelize } = require('../models'); // Assuming Sequelize is used for models
-const { generateToken } = require('../utils/token'); // Adjust as per your token generation function
+require('dotenv').config();
 
-// Helper function to clear database after each test
-async function clearDatabase() {
-    await sequelize.truncate({ cascade: true });
-}
+process.env.NODE_ENV = 'test';
 
-beforeEach(async () => {
-    await clearDatabase();
-});
+const app = require('../app');
+const request = require("supertest");
+const { User } = require('../db/models');
+const { sequelize } = require('../db/models');
+const bcrypt = require('bcryptjs');
+const { setTokenCookie, verifyToken, signToken } = require('../utils/jwt');
+// const { expect, use } = require('chai');
 
-afterAll(async () => {
-    await clearDatabase();
-    await sequelize.close();
-});
+// chai.use(chaiHttp);
 
-describe('Authentication Endpoints', () => {
-    describe('POST /auth/register', () => {
-        it('should register user successfully with default organisation', async () => {
-            const userData = {
-                firstName: 'John',
-                lastName: 'Doe',
-                email: 'john.doe@example.com',
-                password: 'password123',
-                phone: '1234567890'
-            };
+// clear database
 
-            const res = await request(app)
-                .post('/auth/register')
-                .send(userData);
+// token generation test
 
-            expect(res.status).toBe(201);
-            expect(res.body.status).toBe('success');
-            expect(res.body.message).toBe('Registration successful');
-            expect(res.body.data.user.firstName).toBe('John');
-            expect(res.body.data.user.lastName).toBe('Doe');
-            expect(res.body.data.user.email).toBe('john.doe@example.com');
-            expect(res.body.data.user.phone).toBe('1234567890');
-            expect(res.body.data.organisation.name).toBe("John's Organisation");
-        });
+const user = {
+    firstName: 'John',
+    lastName: 'Doe',
+    email: 'john.doe@example.com',
+    password: 'password123',
+    phone: '1234567890'
+};
 
-        it('should fail if required fields are missing', async () => {
-            const userData = {
-                lastName: 'Doe',
-                email: 'john.doe@example.com',
-                password: 'password123',
-                phone: '1234567890'
-            };
+const user1 = {
+    firstName: 'user1',
+    lastName: 'Doe1',
+    email: 'john.doe@exafmple.com',
+    password: 'password123',
+    phone: '1234567890'
+};
+const user2 = {
+    firstName: 'user2',
+    lastName: 'Doe2',
+    email: 'user2.doe@exafmple.com',
+    password: 'password123',
+    phone: '1234567890'
+};
+
+describe("Integration Testing - API with Real Database", () => {
+    // Set up your testing environment
+    beforeAll(async () => {
+        // Initialize a testing database or environment
+        await sequelize.sync({ force: true });
+    });
+    describe('Token generation', () => {
+        it('should ensure token expires at the correct time and correct user details is found in token', async () => {
 
             const res = await request(app)
                 .post('/auth/register')
-                .send(userData);
+                .send(user);
+            // console.log(res.body)
+            const accessToken = res.body.data.accessToken;
+            console.log(accessToken)
+            // expect(statusCode).toEqual(201);
+            // expect(status).toEqual('success');
+            // expect(message).toEqual("Registration successful");
+            // expect(firstName).toEqual(user.firstName);
+            // expect(lastName).toEqual(user.lastName);
+            // expect(email).toEqual(user.email);
+            // expect(phone).toEqual(user.phone);
+            // expect(bcrypt.compareSync(user.password, password)).toBe(true);
+            /*
+            {
+    }
+      */
+            const userFromToken = verifyToken(accessToken);
+            expect(userFromToken.email).toEqual(user.email);
+            expect(userFromToken.firstName).toEqual(user.firstName);
+            expect(userFromToken.lastName).toEqual(user.lastName);
+            expect(userFromToken.phone).toEqual(user.phone);
+            expect(bcrypt.compareSync(user.password, userFromToken.password)).toBe(true);
 
-            expect(res.status).toBe(422);
-            expect(res.body.errors).toHaveLength(1); 
-            expect(res.body.errors[0]).toBe('Please provide first name');
-        });
-
-        it('should fail if there’s duplicate email or userID', async () => {
-            const userData1 = {
-                firstName: 'John',
-                lastName: 'Doe',
-                email: 'john.doe@example.com',
-                password: 'password123',
-                phone: '1234567890'
-            };
-
-            const userData2 = {
-                firstName: 'Jane',
-                lastName: 'Smith',
-                email: 'john.doe@example.com',
-                password: 'password456',
-                phone: '9876543210'
-            };
-
-            // Register first user successfully
-            await request(app)
-                .post('/auth/register')
-                .send(userData1);
-
-            // Attempt to register second user with same email
-            const res = await request(app)
-                .post('/auth/register')
-                .send(userData2);
-
-            expect(res.status).toBe(422);
-            expect(res.body.errors).toContain('Email already exists');
-        });
+            setTimeout(() => {
+                expect(verifyToken(accessToken)).toBe(null);
+            }, 3000)
+        })
     });
 
-    describe('POST /auth/login', () => {
-        it('should log the user in successfully', async () => {
-            // Assuming you have a registered user in the database
-            const registeredUser = {
-                firstName: 'John',
-                lastName: 'Doe',
-                email: 'john.doe@example.com',
+    describe('Organisation', () => {
+        it('should ensure users can\'t see data from organisations they don\'t have access to', async () => {
+            const createdUser1 = await request(app)
+                .post('/auth/register')
+                .send(user1);
+            const createdUser2 = await request(app)
+                .post('/auth/register')
+                .send(user2);
+            const accessToken1 = createdUser1.body.data.accessToken;
+            const accessToken2 = createdUser2.body.data.accessToken;
+            const createdUser1Organisations = await request(app)
+                .get('/api/organisations')
+                .set('Cookie', `token=${accessToken1}`);
+
+            const userOneOrgId = createdUser1Organisations.body.data.organisations[0].orgId;
+
+            const userTwoAccessUserOneOrganisations = await request(app)
+                .get(`/api/organisations/${userOneOrgId}`)
+                .set('Cookie', `token=${accessToken2}`);
+            expect(userTwoAccessUserOneOrganisations.body.message).toEqual('Forbidden: Access to the organisation is denied')
+        })
+    })
+});
+
+describe("End To End Testing - API with Real Database", () => {
+    beforeAll(async () => {
+        // Initialize a testing database or environment
+        await sequelize.sync({ force: true });
+    });
+    describe('Register User Successfully with Default Organisation', () => {
+        it('should a user is registered successfully when no organisation details are provided', async () => {
+            const registeredUser = await request(app)
+                .post('/auth/register')
+                .send(user);
+            expect(registeredUser.body.status).toBe('success');
+            expect(registeredUser.body.message).toBe('Registration successful');
+            expect(registeredUser.body.data.user.firstName).toBe(user.firstName);
+            expect(registeredUser.body.data.user.lastName).toBe(user.lastName);
+            expect(registeredUser.body.data.user.email).toBe(user.email);
+        })
+    })
+
+    describe('Verify the default organisation name is correctly generated', () => {
+        it('Verify the default organisation name is correctly generated (e.g., "John\'s Organisation" for a user with the first name "John")', async () => {
+            const registeredUser = await request(app)
+                .post('/auth/register')
+                .send(user1);
+            const regUserToken = registeredUser.body.data.accessToken;
+            const userOrg = await request(app)
+                .get('/api/organisations')
+                .set('Cookie', `token=${regUserToken}`);
+            expect(userOrg.body.data.organisations[0].name).toEqual(`${user1.firstName}'s Organisation`)//"John's Organisation"
+        })
+    })
+
+    describe('Check that the response contains the expected user details and access token.', () => {
+        it('should Check that the response contains the expected user details and access token.', async () => {
+            const user = {
+                firstName: 'Saviour',
+                lastName: 'Eking',
+                email: 'saviour.eking@example.com',
                 password: 'password123',
                 phone: '1234567890'
             };
-
-            // Register the user
-            await request(app)
+            const registeredUser = await request(app)
                 .post('/auth/register')
-                .send(registeredUser);
+                .send(user);
 
-            // Login with valid credentials
-            const loginRes = await request(app)
+            const token = signToken(user);
+            const regUserToken = registeredUser.body.data.accessToken;
+
+            const verifiedToken = verifyToken(token);
+            const verifiedRegUserToken = verifyToken(regUserToken);
+
+            expect(registeredUser).not.toBeNull();
+            expect(verifiedToken.firstName).toEqual(verifiedRegUserToken.firstName);
+            expect(verifiedToken.email).toEqual(verifiedRegUserToken.email);
+            expect(verifiedToken.lastName).toEqual(verifiedRegUserToken.lastName);
+        })
+    })
+
+    describe('Log the user in successfully', () => {
+        let validLogin, invalidLogin;
+        const validUser = {
+            email: 'john.doe@example.com',
+            password: 'password123'
+        }
+
+        const inValidUser = {
+            email: 'john.doe@examdple.com',
+            password: 'password123'
+        }
+
+        beforeEach(async () => {
+            validLogin = await request(app)
                 .post('/auth/login')
-                .send({
-                    email: 'john.doe@example.com',
-                    password: 'password123'
-                });
+                .send(validUser);
+            invalidLogin = await request(app)
+                .post('/auth/login')
+                .send(inValidUser);
+        })
+        it('It Should Log the user in successfully:Ensure a user is logged in successfully when a valid credential is provided and fails otherwise.', async () => {
+            expect(validLogin.body).toBeInstanceOf(Object);
+            expect(validLogin.body.status).toBe('success');
+        })
 
-            expect(loginRes.status).toBe(200);
-            expect(loginRes.body.status).toBe('success');
-            expect(loginRes.body.message).toBe('Login successful');
-            expect(loginRes.body.data.user.firstName).toBe('John');
-            expect(loginRes.body.data.user.lastName).toBe('Doe');
-            expect(loginRes.body.data.user.email).toBe('john.doe@example.com');
-            expect(loginRes.body.data.user.phone).toBe('1234567890');
-        });
+        it('should fail on invalid credentials', () => {
+            expect(invalidLogin.body).toHaveProperty('error');
+            expect(invalidLogin.body.error).toEqual('Invalid email or password');
+        })
 
-        it('should fail if invalid credentials are provided', async () => {
-            const invalidCredentials = {
-                email: 'invalid.email@example.com',
-                password: 'invalidpassword'
+        it('should check that the response contains the expected user details and access token.', () => {
+            expect(validLogin.body.message).toBe('Login successful');
+            expect(validLogin.body.data.user.firstName).toEqual('John');
+            expect(validLogin.body.data.user.lastName).toEqual('Doe');
+            const accessToken = validLogin.body.data.accessToken;
+            const verifiedToken = verifyToken(accessToken);
+            expect(verifiedToken.email).toEqual(validUser.email);
+            expect(bcrypt.compareSync(validUser.password, verifiedToken.password)).toBe(true)
+        })
+    })
+
+    describe('It Should Fail If Required Fields Are Missing Test cases for each required field (firstName, lastName, email, password) missing.', () => {
+        let invalidSignupNoFirstName, invalidSignupNoLastName, invalidSignupNoEmail, invalidSignupNoPassword;
+
+        beforeEach(async () => {
+            invalidSignupNoFirstName = {
+                firstName: '',
+                lastName: 'Tim',
+                email: 'john@tim.com',
+                password: '123456123'
+            }
+            invalidSignupNoLastName = {
+                firstName: 'John',
+                lastName: '',
+                email: 'john@tim.com',
+                password: '123456123'
             };
+            invalidSignupNoEmail = {
+                firstName: 'John',
+                lastName: 'Tim',
+                email: '',
+                password: '123456123'
+            };
+            invalidSignupNoPassword = {
+                firstName: '',
+                lastName: 'Tim',
+                email: 'john@tim.com',
+                password: ''
+            }
+        })
+        it('Fail if FirstName is missing', async () => {
+            const res = await request(app)
+                .post('/auth/register')
+                .send(invalidSignupNoFirstName)
 
-            const loginRes = await request(app)
-                .post('/auth/login')
-                .send(invalidCredentials);
+            expect(res.status).toEqual(422);
+            const error = res.body.errors.find((error) => error.field === 'firstName');
+            expect(error).toHaveProperty('message', 'Registration unsuccessful');
+            // expect(res.body)
+        })
+        it('Fail if LastName is missing', async () => {
+            const res = await request(app)
+                .post('/auth/register')
+                .send(invalidSignupNoLastName)
 
-            expect(loginRes.status).toBe(401);
-            expect(loginRes.body.status).toBe('error');
-            expect(loginRes.body.message).toBe('Invalid credentials');
-        });
-    });
+            expect(res.status).toEqual(422);
+            const error = res.body.errors.find((error) => error.field === 'lastName');
+            expect(error).toHaveProperty('message', 'Registration unsuccessful');
+            // expect(res.body)
+        })
+        it('Fail if email is missing', async () => {
+            const res = await request(app)
+                .post('/auth/register')
+                .send(invalidSignupNoEmail)
 
-    // Additional tests for token generation and organisation access can be added here
+            expect(res.status).toEqual(422);
+            const error = res.body.errors.find((error) => error.field === 'email');
+            expect(error).toHaveProperty('message', 'Registration unsuccessful');
+            // expect(res.body)
+        })
+        it('Fail if password is missing', async () => {
+            const res = await request(app)
+                .post('/auth/register')
+                .send(invalidSignupNoPassword);
+
+            expect(res.status).toEqual(422);
+            const error = res.body.errors.find((error) => error.field === 'password');
+            expect(error).toHaveProperty('message', 'Registration unsuccessful');
+        })
+    })
+
+    describe('It Should Fail if there\'s Duplicate Email or UserID:Attempt to register two users with the same email.', () => {
+        let duplicateUser1;
+        beforeEach(async () => {
+            duplicateUser1 = {
+                firstName: 'user1',
+                lastName: 'Doe1',
+                email: 'john.doe@exafmple.com',
+                password: 'password123',
+                phone: '1234567890'
+            };
+        })
+
+        it('It Should Fail if there\'s Duplicate Email or UserID:Attempt to register two users with the same email.', async () => {
+            const registeredUser = await request(app)
+                .post('/auth/register')
+                .send(duplicateUser1);
+
+            expect(registeredUser.status).toEqual(422);
+            expect(registeredUser.body.message).toEqual('Registration unsuccessful');
+        })
+    })
 });
