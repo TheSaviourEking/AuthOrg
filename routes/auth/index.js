@@ -21,11 +21,11 @@ const validateSignup = [
     check('password')
         .exists({ checkFalsy: true })
         .withMessage('Password is required to signup'),
-    check('phone')
-        .exists({ checkFalsy: true })
-        .withMessage('Phone number is required.')
-        .isMobilePhone()
-        .withMessage('Invalid phone number format.'),
+    // check('phone')
+        // .exists({ checkFalsy: true })
+        // .withMessage('Phone number is required.')
+        // .isMobilePhone()
+        // .withMessage('Invalid phone number format.'),
 
     handleValidationErrors
 ];
