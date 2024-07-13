@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
+router.get('/', (req, res) => {
+    res.json({
+        message: 'Api is currently running, read the github readme for sample usage instructions'
+    })
+})
 router.use('/api', require('./api'));
 router.use('/auth', require('./auth'));
 
